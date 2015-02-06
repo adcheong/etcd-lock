@@ -86,8 +86,8 @@ type Registry interface {
 		receiver chan *etcd.Response, stop chan bool) (*etcd.Response, error)
 }
 
-var etcdServer = flag.String("etcd-server", "http://127.0.0.1:4001",
-	"Etcd service location")
+// NOTE: only connecting to one coreos cluster node
+var etcdServer = flag.String("etcd-server", "http://172.17.8.101:4001", "Etcd service location")
 
 func NewEtcdRegistry() Registry {
 	return etcd.NewClient([]string{*etcdServer})

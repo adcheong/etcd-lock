@@ -77,9 +77,9 @@ type etcdLock struct {
 func NewMaster(client Registry, name string, id string,
 	ttl uint64) (MasterInterface, error) {
 	// client is mandatory. Min ttl is 5 seconds.
-	if client == nil || ttl < 5 {
-		return nil, errors.New("Invalid args")
-	}
+	// if client == nil || ttl < 5 {
+	// 	return nil, errors.New("Invalid args")
+	// }
 
 	return &etcdLock{client: client, name: name, id: id, ttl: ttl,
 		eventsCh:  make(chan MasterEvent, 1),
@@ -135,6 +135,37 @@ func (e *etcdLock) GetHolder() string {
 	return ""
 }
 
+func (e *etcdLock) procureLock(stopCh chan bool, attempts int) {
+
+	// Get the key.
+	if resp, err := e.client.Get(e.name, false, false); err == nil {
+		// This can happen when the process restarts and ttl has not
+		// yet expired.
+		if resp.Node.Value == e.id {
+			glog.Infof("Acquired lock %s", e.name)
+			e.holding = true
+			e.modifiedIndex = resp.Node.ModifiedIndex
+			e.eventsCh <- MasterEvent{Type: MasterAdded, Master: e.id}
+			go e.refresh(stopCh)
+		} else {
+			e.eventsCh <- MasterEvent{Type: MasterModified,
+				Master: resp.Node.Value}
+		}
+	} else if IsEtcdNotFound(err) {
+		// Try to acquire the lock.
+		e.tryAcquire(stopCh)
+	} else {
+		// Warning: very hacky
+		if attempts < 1 {
+			time.Sleep(3 * time.Second)
+			e.procureLock(stopCh, attempts + 1)
+		} else {
+			glog.Fatalf("Unexpected get error for lock %s: %s", e.id,
+																err.Error())
+		}
+	}
+}
+
 // Method to acquire the lock. It launches up to two goroutines, one to watch
 // the changes on the lock and another to refresh the ttl if successful in
 // acquiring the lock.
@@ -175,28 +206,7 @@ func (e *etcdLock) acquire() (ret error) {
 	// Setup the watch first in order to not miss any notifications.
 	go e.watch(watchCh, watchStopCh, watchFailCh)
 
-	// Get the key.
-	if resp, err := e.client.Get(e.name, false, false); err == nil {
-		// This can happen when the process restarts and ttl has not
-		// yet expired.
-		if resp.Node.Value == e.id {
-			glog.Infof("Acquired lock %s", e.name)
-			e.holding = true
-			e.modifiedIndex = resp.Node.ModifiedIndex
-			e.eventsCh <- MasterEvent{Type: MasterAdded, Master: e.id}
-			go e.refresh(refreshStopCh)
-		} else {
-			e.eventsCh <- MasterEvent{Type: MasterModified,
-				Master: resp.Node.Value}
-		}
-	} else if IsEtcdNotFound(err) {
-		// Try to acquire the lock.
-		e.tryAcquire(refreshStopCh)
-	} else {
-		// TODO: Retry get?
-		glog.Fatalf("Unexpected get error for lock %s: %s", e.id,
-			err.Error())
-	}
+	e.procureLock(refreshStopCh, 0)
 
 	// TODO: What happens if etcd loses quorum?
 	for {
