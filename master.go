@@ -305,8 +305,7 @@ func (e *etcdLock) tryAcquire(refreshStopCh chan bool) {
 }
 
 // Method to watch the lock.
-func (e *etcdLock) watch(watchCh chan *etcd.Response, watchStopCh chan bool,
-	watchFailCh chan bool) {
+func (e *etcdLock) watch(watchCh chan *etcd.Response, watchStopCh chan bool, watchFailCh chan bool) {
 	glog.V(2).Infof("watch lock %s", e.name)
 	if _, err := e.client.Watch(e.name, 0, false, watchCh,
 		watchStopCh); IsEtcdWatchStoppedByUser(err) {

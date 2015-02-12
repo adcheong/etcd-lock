@@ -59,9 +59,10 @@ type Registry interface {
 	// Create creates a file with the given value under the given key. It succeeds
 	// only if the given key does not yet exist.
 	Create(key string, value string, ttl uint64) (*etcd.Response, error)
-	// CreateDir create a driectory. It succeeds only if the given key
+	// CreateDir create a directory. It succeeds only if the given key
 	// does not yet exist.
 	CreateDir(key string, ttl uint64) (*etcd.Response, error)
+	CreateInOrder(key string, value string, ttl uint64) (*etcd.Response, error)
 	// Compare and swap only if prevValue & prevIndex match
 	CompareAndSwap(key string, value string, ttl uint64, prevValue string,
 		prevIndex uint64) (*etcd.Response, error)
