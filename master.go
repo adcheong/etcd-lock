@@ -322,7 +322,8 @@ func (e *etcdLock) watch(watchCh chan *etcd.Response, watchStopCh chan bool, wat
 func (e *etcdLock) refresh(stopCh chan bool) {
 	for {
 		select {
-		case <-time.After(time.Second * time.Duration(e.ttl*4/10)):
+		// case <-time.After(time.Second * time.Duration(e.ttl*4/10)):
+		case <-time.After(time.Millisecond * time.Duration(100)):
 			// Uses CompareAndSwap to protect against the case where a
 			// watch is received with a "delete" and refresh routine is
 			// still running.
